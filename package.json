@@ -1,15 +1,21 @@
 {
-  "name": "electron-projects",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "electron": "^25.1.1"
-  }
+    "name": "electron-projects",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "electron": "^25.1.1"
+    },
+    "devDependencies": {
+        "@liutsing/eslint-config": "^0.0.10",
+        "@liutsing/prettier-config": "^0.0.6",
+        "ws": "^8.13.0"
+    },
+    "prettier": "@liutsing/prettier-config"
 }
