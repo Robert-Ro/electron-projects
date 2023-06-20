@@ -16,13 +16,15 @@ function capture() {
       }
     })
 }
+function noop() {}
+let msgWrapEl
 
+const messages = new Set()
 /**
  * @type {RTCPeerConnection}
  */
 let pc
-let sendChannel
-let receiveChannel
+let textChannel
 
 const ws = new WebSocket('ws://localhost:18080')
 ws.addEventListener('close', () => {
@@ -31,11 +33,13 @@ ws.addEventListener('close', () => {
 ws.addEventListener('open', () => {
   console.log('ws open')
   ws.send(JSON.stringify({ type: 'ready' }))
+  if (!msgWrapEl) msgWrapEl = document.getElementById('items')
+
   createConnection()
 })
 ws.addEventListener('message', (e) => {
   const data = JSON.parse(e.data)
-  console.log(data.type)
+  console.log({ type: data.type })
   switch (data.type) {
     case 'offer':
       handleOffer(data)
@@ -64,10 +68,10 @@ async function createConnection() {
   // 建立连接
   await createPeerConnection()
   // 建立数据通道
-  sendChannel = pc.createDataChannel('sendDataChannel')
-  sendChannel.onopen = onSendChannelStateChange
-  sendChannel.onmessage = onSendChannelMessageCallback
-  sendChannel.onclose = onSendChannelStateChange
+  textChannel = pc.createDataChannel('textChannel')
+  textChannel.onopen = onChannelStateChange
+  textChannel.onmessage = onChannelMessageCallback
+  textChannel.onclose = onChannelStateChange
   // 创建offer
   const offer = await pc.createOffer()
   ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }))
@@ -88,8 +92,7 @@ async function hangup() {
     pc.close()
     pc = null
   }
-  sendChannel = null
-  receiveChannel = null
+  textChannel = null
   console.log('Closed peer connections')
 }
 /**
@@ -97,6 +100,7 @@ async function hangup() {
  */
 function createPeerConnection() {
   pc = new RTCPeerConnection()
+  console.count('pc')
   pc.onicecandidate = (e) => {
     const message = {
       type: 'candidate',
@@ -117,14 +121,7 @@ function createPeerConnection() {
  * @returns
  */
 async function handleOffer(offer) {
-  if (pc) {
-    console.error('existing peerconnection')
-    return
-  }
-  await createPeerConnection()
-  pc.ondatachannel = receiveChannelCallback
   await pc.setRemoteDescription(offer)
-
   const answer = await pc.createAnswer()
   ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }))
   await pc.setLocalDescription(answer)
@@ -159,49 +156,29 @@ async function handleCandidate(candidate) {
  */
 function sendMsg() {
   const data = document.getElementById('input').value
-  if (sendChannel) sendChannel.send(data)
-  else receiveChannel.send(data)
-
+  if (textChannel) textChannel.send(data)
   console.log(`Sent Data: ${data}`)
 }
-/**
- * 接收通道信息
- * @param {*} event
- */
-function receiveChannelCallback(event) {
-  console.log('Receive Channel Callback')
-  receiveChannel = event.channel
-  receiveChannel.onmessage = onReceiveChannelMessageCallback
-  receiveChannel.onopen = onReceiveChannelStateChange
-  receiveChannel.onclose = onReceiveChannelStateChange
-}
-/**
- * 接收通道信息回调
- * @param {*} event
- */
-function onReceiveChannelMessageCallback(event) {
-  console.log('Received Message', event.data)
-}
+
 /**
  * 发送通道信息回调
  * @param {*} event
  */
-function onSendChannelMessageCallback(event) {
+function onChannelMessageCallback(event) {
   console.log('Received Message', event.data)
+  messages.add(event.data)
+
+  messages.forEach((msg) => {
+    const el = document.createElement('li')
+    el.innerText = msg
+    msgWrapEl.appendChild(el)
+  })
 }
 /**
  * 发送通道信息状态变化
  * @param {*} event
  */
-function onSendChannelStateChange() {
-  const readyState = sendChannel.readyState
+function onChannelStateChange() {
+  const readyState = textChannel.readyState
   console.log(`Send channel state is: ${readyState}`)
-}
-/**
- * 接收通道信息状态变化
- * @param {*} event
- */
-function onReceiveChannelStateChange() {
-  const readyState = receiveChannel.readyState
-  console.log(`Receive channel state is: ${readyState}`)
 }
