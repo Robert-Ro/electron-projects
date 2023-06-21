@@ -64,19 +64,24 @@ ws.addEventListener('message', (e) => {
       break
   }
 })
+async function sendOffer() {
+  // 创建offer
+  const offer = await pc.createOffer()
+  ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }))
+  // 更新本地localDescription
+  await pc.setLocalDescription(offer)
+}
+
 async function createConnection() {
   // 建立连接
   await createPeerConnection()
   // 建立数据通道
   textChannel = pc.createDataChannel('textChannel')
   textChannel.onopen = onChannelStateChange
-  textChannel.onmessage = onChannelMessageCallback
+  textChannel.onmessage = onChannelMessage
   textChannel.onclose = onChannelStateChange
   // 创建offer
-  const offer = await pc.createOffer()
-  ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }))
-  // 更新本地localDescription
-  await pc.setLocalDescription(offer)
+  sendOffer()
 }
 
 async function closeRTC() {
@@ -95,6 +100,7 @@ async function hangup() {
   textChannel = null
   console.log('Closed peer connections')
 }
+const receivedChannels = []
 /**
  * 建立连接
  */
@@ -107,13 +113,44 @@ function createPeerConnection() {
       candidate: null,
     }
     if (e.candidate) {
-      console.log(e.candidate, 'candidateString')
       message.candidate = e.candidate.candidate
       message.sdpMid = e.candidate.sdpMid
       message.sdpMLineIndex = e.candidate.sdpMLineIndex
+      message.usernameFragment = e.candidate.usernameFragment
     }
     ws.send(JSON.stringify(message))
   }
+  pc.oniceconnectionstatechange = () => {
+    console.log('ICE connection state:', pc.iceConnectionState)
+  }
+  pc.ondatachannel = (e) => {
+    const channel = e.channel
+    receivedChannels.push(channel)
+    channel.onmessage = (e) => {
+      console.log('收到消息：', e.data)
+    }
+    channel.onopen = () => {
+      console.log('channel onopen')
+    }
+  }
+  //   pc.onconnectionstatechange = (e) => {
+  //     console.log(e)
+  //   }
+  //   pc.onicecandidate = (e) => {
+  //     console.log(e)
+  //   }
+  //   pc.onicecandidateerror = (e) => {
+  //     console.log(e)
+  //   }
+  //   pc.onicegatheringstatechange = (e) => {
+  //     console.log(e)
+  //   }
+  //   pc.onnegotiationneeded = (e) => {
+  //     console.log(e)
+  //   }
+  //   pc.onsignalingstatechange = (e) => {
+  //     console.log(e)
+  //   }
 }
 /**
  * 处理offer
@@ -144,10 +181,7 @@ async function handleAnswer(answer) {
  * @returns
  */
 async function handleCandidate(candidate) {
-  if (!pc) {
-    console.error('no peerconnection')
-    return
-  }
+  //   console.log(candidate)
   if (!candidate.candidate) await pc.addIceCandidate(null)
   else await pc.addIceCandidate(candidate)
 }
@@ -164,7 +198,7 @@ function sendMsg() {
  * 发送通道信息回调
  * @param {*} event
  */
-function onChannelMessageCallback(event) {
+function onChannelMessage(event) {
   console.log('Received Message', event.data)
   messages.add(event.data)
 
